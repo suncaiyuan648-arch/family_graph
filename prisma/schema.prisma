@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum IdentityDocumentType {
+  CHINA_ID
+  PASSPORT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum DateCalendarType {
+  SOLAR
+  LUNAR
+  UNKNOWN
+}
+
+enum FamilyMemberRole {
+  MEMBER
+  PARENT
+  LEADER
+}
+
+enum FamilyMemberStatus {
+  ACTIVE
+  LEFT
+  PENDING
+  REJECTED
+}
+
+enum ClaimStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ConfidenceLevel {
+  HIGH
+  MEDIUM
+  LOW
+  UNKNOWN
+}
+
+enum RelationshipType {
+  FATHER
+  MOTHER
+  SPOUSE
+  CHILD
+}
+
+enum RelationshipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  INACTIVE
+  DISPUTED
+}
+
+enum ReviewType {
+  JOIN_FAMILY
+  CLAIM_PROFILE
+  RELATIONSHIP_CHANGE
+  ADD_UNREGISTERED_MEMBER
+  EXIT_FAMILY
+  PROFILE_CHANGE
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_MORE_INFO
+}
+
+enum VisibilityScope {
+  PUBLIC_TO_FAMILY
+  DIRECT_RELATIVES_ONLY
+  LEADER_ONLY
+  SELF_ONLY
+}
+
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+enum FamilyEventImportance {
+  NORMAL
+  IMPORTANT
+}
+
+model UserAccount {
+  id                      String               @id @default(cuid())
+  documentType            IdentityDocumentType
+  documentNumberEncrypted String
+  documentNumberHash      String               @unique
+  realName                String
+  birthDate               DateTime?
+  phoneEncrypted          String?
+  phoneHash               String?              @unique
+  passwordHash            String
+  personProfileId         String?
+  personProfile           PersonProfile?       @relation(fields: [personProfileId], references: [id])
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  auditLogs               AuditLog[]
+  reviews                 ReviewItem[]         @relation("ReviewApplicant")
+
+  @@index([realName])
+}
+
+model Family {
+  id             String           @id @default(cuid())
+  name           String
+  code           String           @unique
+  description    String?
+  ancestralHome  String?
+  originPlace    String?
+  hallLocation   String?
+  coverImageUrl  String?
+  founderName    String?
+  createdById    String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  members        FamilyMember[]
+  relationships  Relationship[]
+  reviews        ReviewItem[]
+  announcements  Announcement[]
+  familyEvents   FamilyEvent[]
+  editHistories  EditHistory[]
+
+  @@index([name])
+}
+
+model PersonProfile {
+  id                      String             @id @default(cuid())
+  name                    String
+  formerName              String?
+  gender                  Gender             @default(UNKNOWN)
+  documentType            IdentityDocumentType?
+  documentNumberEncrypted String?
+  documentNumberHash      String?            @unique
+  birthDate               DateTime?
+  birthDateType           DateCalendarType   @default(UNKNOWN)
+  deathDate               DateTime?
+  deathDateType           DateCalendarType?
+  isAlive                 Boolean            @default(true)
+  isRegistered            Boolean            @default(false)
+  claimStatus             ClaimStatus        @default(NONE)
+  phoneEncrypted          String?
+  phoneHash               String?
+  avatarUrl               String?
+  nationality             String?
+  nativePlace             String?
+  ancestralHome           String?
+  birthPlace              String?
+  currentResidence        String?
+  detailedAddressEncrypted String?
+  branch                  String?
+  generation              Int?
+  courtesyGenerationName  String?
+  siblingRank             Int?
+  biography               String?
+  education               String?
+  occupation              String?
+  workplace               String?
+  achievements            String?
+  source                  String?
+  confidenceLevel         ConfidenceLevel    @default(UNKNOWN)
+  allowClaim              Boolean            @default(true)
+  createdByName           String
+  lastEditedByName        String
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  userAccounts            UserAccount[]
+  familyMembers           FamilyMember[]
+  relationshipsFrom       Relationship[]     @relation("RelationshipFrom")
+  relationshipsTo         Relationship[]     @relation("RelationshipTo")
+  claimRequests           ClaimRequest[]
+  editHistories           EditHistory[]
+  privacySettings         PrivacySetting[]
+
+  @@index([name])
+  @@index([branch])
+  @@index([generation])
+}
+
+model FamilyMember {
+  id              String             @id @default(cuid())
+  familyId        String
+  personProfileId String
+  role            FamilyMemberRole   @default(MEMBER)
+  status          FamilyMemberStatus @default(PENDING)
+  joinedAt        DateTime?
+  leftAt          DateTime?
+  family          Family             @relation(fields: [familyId], references: [id])
+  personProfile   PersonProfile      @relation(fields: [personProfileId], references: [id])
+
+  @@unique([familyId, personProfileId])
+  @@index([familyId, role, status])
+}
+
+model Relationship {
+  id           String             @id @default(cuid())
+  familyId     String
+  fromPersonId String
+  toPersonId   String
+  relationType RelationshipType
+  status       RelationshipStatus @default(PENDING)
+  source       String?
+  createdById  String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  family       Family             @relation(fields: [familyId], references: [id])
+  fromPerson   PersonProfile      @relation("RelationshipFrom", fields: [fromPersonId], references: [id])
+  toPerson     PersonProfile      @relation("RelationshipTo", fields: [toPersonId], references: [id])
+
+  @@index([familyId, status])
+  @@index([fromPersonId, relationType])
+  @@index([toPersonId, relationType])
+}
+
+model ReviewItem {
+  id              String       @id @default(cuid())
+  familyId        String
+  applicantUserId String?
+  type            ReviewType
+  status          ReviewStatus @default(PENDING)
+  relatedEntityId String?
+  relatedPersonName String?
+  summary         String
+  payload         Json?
+  reviewerUserId  String?
+  reviewedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  family          Family       @relation(fields: [familyId], references: [id])
+  applicant       UserAccount? @relation("ReviewApplicant", fields: [applicantUserId], references: [id])
+
+  @@index([familyId, type, status])
+}
+
+model ClaimRequest {
+  id              String       @id @default(cuid())
+  familyId        String
+  applicantUserId String
+  personProfileId String
+  status          ReviewStatus @default(PENDING)
+  statement       String?
+  evidenceUrls    String[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  personProfile   PersonProfile @relation(fields: [personProfileId], references: [id])
+
+  @@index([familyId, status])
+}
+
+model ExitRequest {
+  id                    String       @id @default(cuid())
+  familyId              String
+  applicantUserId       String
+  reason                String
+  keepGenealogyProfile  Boolean      @default(true)
+  hideContact           Boolean      @default(true)
+  allowNameInGenealogy  Boolean      @default(true)
+  note                  String?
+  status                ReviewStatus @default(PENDING)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  @@index([familyId, status])
+}
+
+model Announcement {
+  id                   String               @id @default(cuid())
+  familyId             String
+  title                String
+  type                 String
+  body                 String
+  publisherUserId      String
+  publisherName        String
+  priority             AnnouncementPriority @default(NORMAL)
+  requiresConfirmation Boolean              @default(false)
+  publishedAt          DateTime             @default(now())
+  family               Family               @relation(fields: [familyId], references: [id])
+
+  @@index([familyId, publishedAt])
+}
+
+model FamilyEvent {
+  id                 String                @id @default(cuid())
+  familyId           String
+  title              String
+  eventType          String
+  eventDate          DateTime
+  relatedPersonIds   String[]
+  location           String?
+  description        String
+  recorderUserId     String
+  recorderName       String
+  importance         FamilyEventImportance @default(NORMAL)
+  family             Family                @relation(fields: [familyId], references: [id])
+
+  @@index([familyId, eventDate])
+}
+
+model PrivacySetting {
+  id              String          @id @default(cuid())
+  personProfileId String
+  fieldName       String
+  visibility      VisibilityScope
+  personProfile   PersonProfile   @relation(fields: [personProfileId], references: [id])
+
+  @@unique([personProfileId, fieldName])
+}
+
+model EditHistory {
+  id              String        @id @default(cuid())
+  familyId        String
+  personProfileId String
+  editorUserId    String
+  editorName      String
+  fieldName       String
+  oldValueMasked  String?
+  newValueMasked  String?
+  reason          String?
+  createdAt       DateTime      @default(now())
+  family          Family        @relation(fields: [familyId], references: [id])
+  personProfile   PersonProfile @relation(fields: [personProfileId], references: [id])
+
+  @@index([familyId, personProfileId, createdAt])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  ipAddress   String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  actor       UserAccount? @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+}
