@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { PageSection } from "../components/PageSection";
 import { StatusBadge } from "../components/StatusBadge";
+import { defaultFamilyId } from "../config/defaults";
 import { mockPeople } from "../mocks/family";
-import { familyId } from "../routes";
 
 const filters = ["全部", "已注册", "未注册", "已故", "在世", "待认领", "资料待确认", "待审核关系"];
 
@@ -22,7 +22,7 @@ export function MembersPage() {
       <PageSection title="成员档案">
         <div className="member-list">
           {mockPeople.map((person) => (
-            <Link className="member-card" to={`/family/${familyId}/member/${person.id}`} key={person.id}>
+            <Link className="member-card" to={`/family/${defaultFamilyId}/member/${person.id}`} key={person.id}>
               <div className={person.isAlive ? "avatar" : "avatar grayscale"}>{person.name.slice(0, 1)}</div>
               <div>
                 <h3>{person.name}</h3>

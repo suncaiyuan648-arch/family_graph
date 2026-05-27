@@ -1,18 +1,18 @@
 import { Link } from "react-router-dom";
 import { PageSection } from "../components/PageSection";
-import { familyId } from "../routes";
+import { defaultFamilyId } from "../config/defaults";
 import { mockFamily, mockStats, recentActivities } from "../mocks/family";
 
 const quickLinks = [
-  ["家族图谱", `/family/${familyId}/tree`],
-  ["成员档案", `/family/${familyId}/members`],
-  ["待审核", `/family/${familyId}/approvals`],
-  ["身份认领", `/family/${familyId}/claim`],
-  ["家族公告", `/family/${familyId}/announcements`],
-  ["家族大事记", `/family/${familyId}/events`],
-  ["家族群聊", `/family/${familyId}/chat`],
-  ["互助平台", `/family/${familyId}/marketplace`],
-  ["AI 分析", `/family/${familyId}/ai`],
+  ["家族图谱", `/family/${defaultFamilyId}/tree`],
+  ["成员档案", `/family/${defaultFamilyId}/members`],
+  ["待审核", `/family/${defaultFamilyId}/approvals`],
+  ["身份认领", `/family/${defaultFamilyId}/claim`],
+  ["家族公告", `/family/${defaultFamilyId}/announcements`],
+  ["家族大事记", `/family/${defaultFamilyId}/events`],
+  ["家族群聊", `/family/${defaultFamilyId}/chat`],
+  ["互助平台", `/family/${defaultFamilyId}/marketplace`],
+  ["AI 分析", `/family/${defaultFamilyId}/ai`],
 ];
 
 export function HomePage() {

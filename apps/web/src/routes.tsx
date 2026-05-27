@@ -23,8 +23,6 @@ import { AiPage } from "./pages/AiPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 
-export const familyId = "family-lin";
-
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/home" replace /> },
   { path: "/login", element: <LoginPage /> },
