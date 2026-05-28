@@ -1,13 +1,29 @@
 import type { ReactNode } from "react";
 import { ArrowLeft, CalendarDays, Edit3, FileText, GitBranch, MapPin, Share2, User, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import type { PersonProfile } from "@family-graph/shared";
+import { familyApi } from "../api/familyApi";
 import { defaultFamilyId } from "../config/defaults";
 import { mockPeople } from "../mocks/family";
 
 export function MemberProfilePage() {
   const { memberId } = useParams();
-  const person = mockPeople.find((item) => item.id === memberId) ?? mockPeople[0];
+  const [person, setPerson] = useState<PersonProfile>(mockPeople.find((item) => item.id === memberId) ?? mockPeople[0]);
   const unregistered = !person.isRegistered;
+
+  useEffect(() => {
+    if (!memberId) return;
+    let mounted = true;
+    familyApi.getMember(defaultFamilyId, memberId).then((result) => {
+      if (mounted) setPerson(result);
+    }).catch(() => {
+      if (mounted) setPerson(mockPeople.find((item) => item.id === memberId) ?? mockPeople[0]);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [memberId]);
 
   return (
     <div className="member-profile-page">

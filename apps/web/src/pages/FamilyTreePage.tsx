@@ -1,19 +1,34 @@
 import { Grid3X3, List, Network, Search, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { FamilyTreeNode } from "@family-graph/shared";
+import { familyApi } from "../api/familyApi";
+import { defaultFamilyId } from "../config/defaults";
+import { mockTreeNodes } from "../mocks/family";
 
 const filters = ["全部成员", "代际", "支系", "地区", "在世/已故", "已注册/未注册"];
-
-const treeNodes = [
-  { id: "lin-jingde", name: "林景德", generation: "第16代", x: 178, y: 78, status: "已故", muted: true },
-  { id: "lin-chengan", name: "林承安", generation: "第17代", x: 100, y: 220, status: "", muted: false },
-  { id: "lin-ensheng", name: "林恩生", generation: "第17代", x: 262, y: 210, status: "已故", muted: true },
-  { id: "lin-wenhan", name: "林文翰", generation: "第18代", x: 70, y: 360, status: "", muted: false },
-  { id: "lin-huaigu", name: "林怀古", generation: "第18代", x: 184, y: 365, status: "", muted: false },
-  { id: "lin-ruoxi", name: "林若曦", generation: "第19代", x: 38, y: 500, status: "待审核", muted: false },
-];
 
 const treeLines = ["line-a", "line-b", "line-c", "line-d", "line-e pending"];
 
 export function FamilyTreePage() {
+  const [nodes, setNodes] = useState<FamilyTreeNode[]>(mockTreeNodes);
+  const positionedNodes = useMemo(() => nodes.slice(0, 6).map((node, index) => ({
+    ...node,
+    x: [178, 100, 262, 70, 184, 38][index] ?? 120,
+    y: [78, 220, 210, 360, 365, 500][index] ?? (100 + index * 80),
+  })), [nodes]);
+
+  useEffect(() => {
+    let mounted = true;
+    familyApi.getTree(defaultFamilyId).then((result) => {
+      if (mounted) setNodes(result.nodes);
+    }).catch(() => {
+      if (mounted) setNodes(mockTreeNodes);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="family-tree-page">
       <section className="tree-toolbar">
@@ -54,18 +69,20 @@ export function FamilyTreePage() {
         {treeLines.map((line) => (
           <span className={`tree-line ${line}`} key={line} />
         ))}
-        {treeNodes.map((node) => (
+        {positionedNodes.map((node) => {
+          const status = node.statusTags.includes("待认领") ? "待审核" : node.isAlive ? "" : "已故";
+          return (
           <article
-            className={`tree-person-node ${node.muted ? "muted" : ""} ${node.status === "待审核" ? "unregistered" : ""}`}
+            className={`tree-person-node ${!node.isAlive ? "muted" : ""} ${status === "待审核" ? "unregistered" : ""}`}
             style={{ left: node.x, top: node.y }}
             key={node.id}
           >
             <div>{node.name.slice(0, 1)}</div>
             <strong>{node.name}</strong>
-            <span>{node.generation}</span>
-            {node.status && <em>{node.status}</em>}
+            <span>第{node.generation ?? "-"}代</span>
+            {status && <em>{status}</em>}
           </article>
-        ))}
+        );})}
         <div className="tree-legend">
           <span><i className="alive" />在世</span>
           <span><i className="dead" />已故</span>

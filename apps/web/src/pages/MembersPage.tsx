@@ -1,11 +1,28 @@
 import { Plus, Search, Share2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import type { PersonProfile } from "@family-graph/shared";
+import { familyApi } from "../api/familyApi";
 import { defaultFamilyId } from "../config/defaults";
 import { mockPeople } from "../mocks/family";
 
 const filters = ["全部", "已注册", "未注册", "已故", "在世", "待认领", "资料待确认"];
 
 export function MembersPage() {
+  const [people, setPeople] = useState<PersonProfile[]>(mockPeople);
+
+  useEffect(() => {
+    let mounted = true;
+    familyApi.listMembers(defaultFamilyId).then((result) => {
+      if (mounted) setPeople(result);
+    }).catch(() => {
+      if (mounted) setPeople(mockPeople);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="members-page">
       <section className="members-toolbar">
@@ -29,7 +46,7 @@ export function MembersPage() {
       </section>
 
       <section className="members-list">
-        {mockPeople.map((person) => (
+        {people.map((person) => (
           <Link className="archive-member-card" to={`/family/${defaultFamilyId}/member/${person.id}`} key={person.id}>
             <span className={person.isAlive ? "" : "muted"}>{person.name.slice(0, 1)}</span>
             <div>

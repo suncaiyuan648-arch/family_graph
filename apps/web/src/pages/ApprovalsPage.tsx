@@ -1,22 +1,34 @@
 import { AlertCircle, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
-const summary = [
-  ["3", "待审核"],
-  ["1", "加入申请"],
-  ["1", "认领申请"],
-  ["1", "关系变更"],
-];
+import type { ReviewItem } from "@family-graph/shared";
+import { familyApi } from "../api/familyApi";
+import { defaultFamilyId } from "../config/defaults";
+import { mockReviews } from "../mocks/family";
 
 const tabs = ["全部", "加入家族", "身份认领", "关系修改"];
 
-const reviews = [
-  { name: "张秋丹", type: "加入家族", target: "林怀古的配偶", time: "2024-05-26 10:30", note: "希望加入林氏家族，我是林怀古的配偶。" },
-  { name: "林文翰", type: "身份认领", target: "目标档案：林承安（第17代）", time: "2024-05-25 14:20", note: "这是我父亲的档案，希望认领并完善信息。" },
-  { name: "林书涵", type: "关系变更", target: "申请添加父亲：林文翰", time: "2024-05-24 16:45", note: "补充家庭关系信息。" },
-];
-
 export function ApprovalsPage() {
+  const [reviews, setReviews] = useState<ReviewItem[]>(mockReviews);
+  const summary = useMemo(() => [
+    [String(reviews.filter((item) => item.status === "PENDING").length), "待审核"],
+    [String(reviews.filter((item) => item.type === "JOIN_FAMILY").length), "加入申请"],
+    [String(reviews.filter((item) => item.type === "CLAIM_PROFILE").length), "认领申请"],
+    [String(reviews.filter((item) => item.type === "RELATIONSHIP_CHANGE").length), "关系变更"],
+  ], [reviews]);
+
+  useEffect(() => {
+    let mounted = true;
+    familyApi.listApprovals(defaultFamilyId).then((result) => {
+      if (mounted) setReviews(result);
+    }).catch(() => {
+      if (mounted) setReviews(mockReviews);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="approvals-page custom-flow-page">
       <header className="custom-flow-header">
@@ -44,16 +56,16 @@ export function ApprovalsPage() {
 
       <main className="approval-list">
         {reviews.map((review) => (
-          <article className="approval-card" key={review.name}>
+          <article className="approval-card" key={review.id}>
             <div className="approval-person">
-              <span>{review.name.slice(0, 1)}</span>
+              <span>{review.applicantName.slice(0, 1)}</span>
               <div>
-                <h3>{review.name}<em>{review.type}</em></h3>
-                <p>{review.target}</p>
-                <time>{review.time}</time>
+                <h3>{review.applicantName}<em>{reviewTypeLabel(review.type)}</em></h3>
+                <p>{review.relatedPersonName ? `目标档案：${review.relatedPersonName}` : "家族申请"}</p>
+                <time>{review.submittedAt}</time>
               </div>
             </div>
-            <p className="approval-note">{review.note}</p>
+            <p className="approval-note">{review.summary}</p>
             <div className="approval-actions">
               <button type="button"><CheckCircle2 size={16} />同意</button>
               <button type="button" className="reject"><XCircle size={16} />拒绝</button>
@@ -64,4 +76,16 @@ export function ApprovalsPage() {
       </main>
     </div>
   );
+}
+
+function reviewTypeLabel(type: ReviewItem["type"]) {
+  const map: Record<ReviewItem["type"], string> = {
+    JOIN_FAMILY: "加入家族",
+    CLAIM_PROFILE: "身份认领",
+    RELATIONSHIP_CHANGE: "关系变更",
+    ADD_UNREGISTERED_MEMBER: "新增成员",
+    EXIT_FAMILY: "退出家族",
+    PROFILE_CHANGE: "档案修改",
+  };
+  return map[type];
 }

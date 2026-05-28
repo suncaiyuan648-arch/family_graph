@@ -12,13 +12,14 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { familyApi } from "../api/familyApi";
 import { defaultFamilyId } from "../config/defaults";
 import {
   familyArchiveSummaries,
   familyTimelineItems,
   homeRecentActivities,
-  mockFamily,
   mockStats,
 } from "../mocks/family";
 
@@ -34,15 +35,42 @@ const quickLinks = [
 ];
 
 export function HomePage() {
+  const [stats, setStats] = useState(mockStats);
+  const [familyName, setFamilyName] = useState("家族档案中心");
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      familyApi.getFamily(defaultFamilyId),
+      familyApi.getStats(defaultFamilyId),
+    ]).then(([family, apiStats]) => {
+      if (!mounted) return;
+      setFamilyName(`${family.name}档案中心`);
+      setStats([
+        { label: "家族总人数", value: String(apiStats.totalMembers), icon: Users },
+        { label: "已注册成员", value: String(apiStats.registeredMembers) },
+        { label: "未注册成员", value: String(apiStats.unregisteredMembers) },
+        { label: "待审核事项", value: String(apiStats.pendingReviews), badge: "新" },
+        { label: "代际跨度", value: "8 世代" },
+        { label: "地区分布", value: "12 城市" },
+      ]);
+    }).catch(() => {
+      setStats(mockStats);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="home-page">
       <section className="home-hero">
-        <h2>家族档案中心</h2>
+        <h2>{familyName}</h2>
         <p>数字化传承与联络网络</p>
       </section>
 
       <section className="home-stats-grid" aria-label="家族统计">
-        {mockStats.map((stat) => {
+        {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <article className="home-stat-card" key={stat.label}>

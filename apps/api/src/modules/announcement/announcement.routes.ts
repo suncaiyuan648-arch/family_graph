@@ -3,15 +3,29 @@ import { z } from "zod";
 import { created, ok } from "../../lib/response";
 import { announcements } from "../../data/mockData";
 import { getFamilyId } from "../../lib/params";
+import { databaseEnabled } from "../../lib/database";
+import { toAnnouncementDto } from "../../lib/mappers";
+import { prisma } from "../../lib/prisma";
 
 export const announcementRouter = Router({ mergeParams: true });
 
-announcementRouter.get("/", (request, response) => {
+announcementRouter.get("/", async (request, response) => {
   const familyId = getFamilyId(request);
-  response.json(ok(announcements.filter((item) => item.familyId === familyId)));
+  if (databaseEnabled()) {
+    try {
+      const result = await prisma.announcement.findMany({
+        where: { familyId },
+        orderBy: { publishedAt: "desc" },
+      });
+      return response.json(ok(result.map(toAnnouncementDto)));
+    } catch {
+      // Fall back below.
+    }
+  }
+  return response.json(ok(announcements.filter((item) => item.familyId === familyId)));
 });
 
-announcementRouter.post("/", (request, response) => {
+announcementRouter.post("/", async (request, response) => {
   const input = z.object({
     title: z.string().min(1),
     type: z.string().min(1),
@@ -20,7 +34,27 @@ announcementRouter.post("/", (request, response) => {
     requiresConfirmation: z.boolean().default(false),
   }).parse(request.body);
 
-  response.status(201).json(created({
+  if (databaseEnabled()) {
+    try {
+      const result = await prisma.announcement.create({
+        data: {
+          familyId: getFamilyId(request),
+          title: input.title,
+          type: input.type,
+          body: input.body,
+          priority: input.priority,
+          requiresConfirmation: input.requiresConfirmation,
+          publisherUserId: "user-lin-hg",
+          publisherName: "林怀古",
+        },
+      });
+      return response.status(201).json(created(toAnnouncementDto(result)));
+    } catch {
+      // Fall back below.
+    }
+  }
+
+  return response.status(201).json(created({
     id: "announcement-new",
     familyId: getFamilyId(request),
     ...input,
