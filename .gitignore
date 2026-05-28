@@ -11,3 +11,4 @@ uploads
 .tools/
 .cloudflared.*
 .localtunnel.*
+.api.*

@@ -1,24 +1,41 @@
 import { Router } from "express";
 import { ok } from "../../lib/response";
+import { reviews } from "../../data/mockData";
+import { getFamilyId } from "../../lib/params";
 
 export const approvalRouter = Router({ mergeParams: true });
 
-approvalRouter.get("/", (_request, response) => {
-  response.status(501).json(ok({ module: "approval", action: "list-review-items", status: "skeleton" }));
+approvalRouter.get("/", (request, response) => {
+  const familyId = getFamilyId(request);
+  const status = String(request.query.status ?? "");
+  const type = String(request.query.type ?? "");
+  const result = reviews.filter((review) => {
+    if (review.familyId !== familyId) return false;
+    if (status && review.status !== status) return false;
+    if (type && review.type !== type) return false;
+    return true;
+  });
+  response.json(ok(result));
 });
 
-approvalRouter.get("/:approvalId", (_request, response) => {
-  response.status(501).json(ok({ module: "approval", action: "review-detail", status: "skeleton" }));
+approvalRouter.get("/:approvalId", (request, response) => {
+  const review = reviews.find((item) => item.id === request.params.approvalId);
+  if (!review) return response.status(404).json(ok({ message: "APPROVAL_NOT_FOUND" }));
+  return response.json(ok({ ...review, payload: { sensitiveFieldsMasked: true, proofFiles: [] } }));
 });
 
-approvalRouter.post("/:approvalId/approve", (_request, response) => {
-  response.status(501).json(ok({ module: "approval", action: "approve-review", status: "skeleton" }));
+approvalRouter.post("/:approvalId/approve", (request, response) => {
+  response.json(ok({ id: request.params.approvalId, status: "APPROVED", reviewComment: request.body?.comment ?? "" }));
 });
 
-approvalRouter.post("/:approvalId/reject", (_request, response) => {
-  response.status(501).json(ok({ module: "approval", action: "reject-review", status: "skeleton" }));
+approvalRouter.post("/:approvalId/reject", (request, response) => {
+  response.json(ok({ id: request.params.approvalId, status: "REJECTED", reviewComment: request.body?.comment ?? "" }));
 });
 
-approvalRouter.post("/:approvalId/request-more-info", (_request, response) => {
-  response.status(501).json(ok({ module: "approval", action: "request-more-info", status: "skeleton" }));
+approvalRouter.post("/:approvalId/need-more-proof", (request, response) => {
+  response.json(ok({ id: request.params.approvalId, status: "NEEDS_MORE_INFO", reviewComment: request.body?.comment ?? "请补充证明材料" }));
+});
+
+approvalRouter.post("/:approvalId/request-more-info", (request, response) => {
+  response.json(ok({ id: request.params.approvalId, status: "NEEDS_MORE_INFO", reviewComment: request.body?.comment ?? "请补充证明材料" }));
 });

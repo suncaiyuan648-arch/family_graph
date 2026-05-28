@@ -13,6 +13,7 @@ import { placeholderRouter } from "./modules/placeholder/placeholder.routes";
 export const apiRouter = Router();
 
 apiRouter.use("/auth", authRouter);
+apiRouter.use("/claim", claimRouter);
 apiRouter.use("/families", familyRouter);
 apiRouter.use("/families/:familyId/members", memberRouter);
 apiRouter.use("/families/:familyId/relationships", relationshipRouter);
