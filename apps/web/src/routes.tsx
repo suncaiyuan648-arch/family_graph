@@ -9,7 +9,10 @@ import { FamilyOverviewPage } from "./pages/FamilyOverviewPage";
 import { FamilyTreePage } from "./pages/FamilyTreePage";
 import { MembersPage } from "./pages/MembersPage";
 import { MemberProfilePage } from "./pages/MemberProfilePage";
+import { MemberEditPage } from "./pages/MemberEditPage";
+import { EditHistoryPage } from "./pages/EditHistoryPage";
 import { UnregisteredMemberNewPage } from "./pages/UnregisteredMemberNewPage";
+import { RelationshipsPage } from "./pages/RelationshipsPage";
 import { ApprovalsPage } from "./pages/ApprovalsPage";
 import { ClaimPage } from "./pages/ClaimPage";
 import { ClaimRequestsPage } from "./pages/ClaimRequestsPage";
@@ -27,17 +30,20 @@ export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/home" replace /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
+  { path: "/family/create", element: <FamilyCreatePage /> },
+  { path: "/family/join", element: <FamilyJoinPage /> },
+  { path: "/family/:familyId/member/:memberId", element: <MemberProfilePage /> },
+  { path: "/family/:familyId/member/:memberId/edit", element: <MemberEditPage /> },
+  { path: "/family/:familyId/member/:memberId/edit-history", element: <EditHistoryPage /> },
+  { path: "/family/:familyId/unregistered-members/new", element: <UnregisteredMemberNewPage /> },
   {
     element: <AppShell />,
     children: [
       { path: "/home", element: <HomePage /> },
-      { path: "/family/create", element: <FamilyCreatePage /> },
-      { path: "/family/join", element: <FamilyJoinPage /> },
       { path: "/family/:familyId", element: <FamilyOverviewPage /> },
       { path: "/family/:familyId/tree", element: <FamilyTreePage /> },
       { path: "/family/:familyId/members", element: <MembersPage /> },
-      { path: "/family/:familyId/member/:memberId", element: <MemberProfilePage /> },
-      { path: "/family/:familyId/unregistered-members/new", element: <UnregisteredMemberNewPage /> },
+      { path: "/family/:familyId/relationships", element: <RelationshipsPage /> },
       { path: "/family/:familyId/approvals", element: <ApprovalsPage /> },
       { path: "/family/:familyId/claim", element: <ClaimPage /> },
       { path: "/family/:familyId/claim-requests", element: <ClaimRequestsPage /> },

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Menu, TreePine } from "lucide-react";
+import { TreePine } from "lucide-react";
 
 type LoginMode = "document" | "phone";
 
@@ -10,10 +10,6 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-phone-frame" aria-label="家族档案登录">
-        <button className="login-menu-button" aria-label="打开菜单">
-          <Menu size={22} strokeWidth={2.4} />
-        </button>
-
         <div className="login-brand">
           <div className="login-logo" aria-hidden="true">
             <TreePine size={44} strokeWidth={2.4} />

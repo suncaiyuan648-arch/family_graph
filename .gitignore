@@ -8,3 +8,6 @@ uploads
 *.log
 *.tsbuildinfo
 .DS_Store
+.tools/
+.cloudflared.*
+.localtunnel.*
