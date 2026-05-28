@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "IdentityDocumentType" AS ENUM ('CHINA_ID', 'PASSPORT');
 
 -- CreateEnum
