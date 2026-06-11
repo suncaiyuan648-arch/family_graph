@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "module": "CommonJS",
@@ -8,8 +8,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
-      "@/*": ["src/*"],
-      "@family-graph/shared": ["../../packages/shared/src/index.ts"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src"]

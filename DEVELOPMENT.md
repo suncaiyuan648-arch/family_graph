@@ -5,10 +5,10 @@
 ## 1. 项目结构
 
 ```text
-apps/web      React + TypeScript + Vite 前端
-apps/api      Node.js + Express API 服务
-packages      共享类型与工具包
-prisma        Prisma schema、migration、seed
+frontend          React + TypeScript + Vite 前端
+frontend/shared   前端共享领域类型
+backend           Node.js + Express API 服务
+backend/prisma    Prisma schema、migration、seed
 ```
 
 ## 2. 环境依赖
@@ -29,7 +29,7 @@ prisma        Prisma schema、migration、seed
 
 ## 3. 环境变量
 
-本地使用 `.env`：
+后端本地使用 `backend/.env`：
 
 ```env
 DATABASE_URL="postgresql://family_graph:family_graph@localhost:5432/family_graph?schema=public"
@@ -42,6 +42,7 @@ VITE_API_BASE_URL="http://localhost:3000/api"
 首次配置可复制：
 
 ```powershell
+Set-Location backend
 Copy-Item .env.example .env
 ```
 
@@ -69,6 +70,16 @@ npm run prisma:migrate -- --name init
 npm run prisma:seed
 ```
 
+后端目录内也可以直接运行：
+
+```powershell
+cd backend
+npm run db:generate
+npm run db:migrate
+npm run db:seed
+npm run db:check
+```
+
 常用 Prisma 命令：
 
 ```powershell
@@ -85,11 +96,45 @@ npm run prisma:seed
 npm run dev:api
 ```
 
+后端一键脚本会执行数据库初始化、连接检查、API 启动和 API 内网穿透：
+
+```powershell
+npm run dev:backend:full
+```
+
+等价于在 `backend` 目录运行：
+
+```powershell
+npm run dev:full
+```
+
+后端完整脚本文件：
+
+```text
+backend/scripts/start-backend.ps1
+```
+
+该脚本会自动执行：
+
+- 如果 `backend/.env` 不存在，则从 `backend/.env.example` 创建
+- `npm run db:generate`
+- `npm run db:migrate`
+- `npm run db:seed`
+- `npm run db:check`
+- 启动 API dev server
+- 启动 `cloudflared tunnel --url http://localhost:3000`
+
+如果只想初始化数据库并启动 API，不启动内网穿透：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File backend/scripts/start-backend.ps1 -SkipTunnel
+```
+
 构建后运行：
 
 ```powershell
-npm --workspace apps/api run build
-node apps/api/dist/server.js
+npm --workspace backend run build
+node backend/dist/server.js
 ```
 
 默认地址：
@@ -112,10 +157,22 @@ Invoke-RestMethod http://localhost:3000/api/families/family-lin/stats
 npm run dev:web
 ```
 
+新的前端启动入口：
+
+```powershell
+npm run dev:frontend
+```
+
+前端启动脚本文件：
+
+```text
+frontend/scripts/start-frontend.ps1
+```
+
 注意：当前 Windows 机器保留了 `5141-5240` 端口段，所以默认 `5173` 可能无法监听。已验证可用端口为 `5400`：
 
 ```powershell
-npm --workspace apps/web run dev -- --host 127.0.0.1 --port 5400
+npm run dev:frontend
 ```
 
 访问：
@@ -127,7 +184,7 @@ http://localhost:5400/login
 如果需要局域网其他设备访问前端，改为监听 `0.0.0.0`，并使用未被系统保留的端口：
 
 ```powershell
-npm --workspace apps/web run dev -- --host 0.0.0.0 --port 5400
+npm --workspace frontend run dev:lan
 ```
 
 如果被防火墙拦截，需要允许该端口入站访问。
@@ -155,9 +212,16 @@ Node API -> localhost:5432 -> Docker 容器里的 PostgreSQL
 
 当前这台机器已经安装并跑通了本机 PostgreSQL，所以日常开发可以不启动 Docker PostgreSQL。Docker 先作为备用和团队统一方案保留。
 
-项目已提供 `docker-compose.yml`，用于启动 PostgreSQL：
+项目已提供 `backend/docker-compose.yml`，用于启动 PostgreSQL：
 
 ```powershell
+docker compose up -d postgres
+```
+
+如果从根目录操作，需要先进入后端目录：
+
+```powershell
+cd backend
 docker compose up -d postgres
 ```
 
@@ -236,7 +300,7 @@ docker info
 
 如果 Docker Desktop 显示 ready，但命令行提示 pipe 权限问题，确认当前用户已加入 `docker-users` 组，并重新登录 Windows。
 
-本项目目前不要把前端 dev server 放进 Docker。前端热更新、本地调试、浏览器移动端预览都直接跑在 Windows Node 环境更方便。后续做正式部署时，可以再为 `apps/web` 和 `apps/api` 分别补 Dockerfile。
+本项目目前不要把前端 dev server 放进 Docker。前端热更新、本地调试、浏览器移动端预览都直接跑在 Windows Node 环境更方便。后续做正式部署时，可以再为 `frontend` 和 `backend` 分别补 Dockerfile。
 
 ## 8. 内网穿透
 
@@ -245,7 +309,7 @@ docker info
 前提：前端已启动，例如：
 
 ```powershell
-npm --workspace apps/web run dev -- --host 127.0.0.1 --port 5400
+npm run dev:frontend
 ```
 
 启动临时隧道：
@@ -330,5 +394,5 @@ net localgroup docker-users %USERNAME% /add
 2. 执行 `npm run prisma:migrate`。
 3. 执行 `npm run prisma:seed`。
 4. 启动 API：`npm run dev:api`。
-5. 启动前端：`npm --workspace apps/web run dev -- --host 127.0.0.1 --port 5400`。
+5. 启动前端：`npm run dev:frontend`。
 6. 访问 `http://localhost:5400/login`。

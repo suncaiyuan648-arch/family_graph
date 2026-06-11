@@ -1,10 +1,10 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@family-graph/shared": ["../../packages/shared/src/index.ts"]
+      "@family-graph/shared": ["./shared/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

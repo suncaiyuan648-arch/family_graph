@@ -5,11 +5,16 @@
   "type": "commonjs",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:full": "powershell -ExecutionPolicy Bypass -File scripts/start-backend.ps1",
+    "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:check": "tsx scripts/check-db.ts"
   },
   "dependencies": {
-    "@family-graph/shared": "0.1.0",
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
