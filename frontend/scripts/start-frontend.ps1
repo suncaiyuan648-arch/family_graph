@@ -5,6 +5,7 @@ Set-Location $FrontendRoot
 
 $FrontendPort = 5400
 $FrontendUrl = "http://localhost:$FrontendPort/login"
+$FallbackPort = 5401
 
 function Stop-PortProcess {
   param(
@@ -46,6 +47,7 @@ if (-not $npm) {
 }
 
 Stop-PortProcess -Port $FrontendPort
+Stop-PortProcess -Port $FallbackPort
 
 Write-Host "Starting frontend at $FrontendUrl"
-& $npm run dev
+& $npm run dev:vite
