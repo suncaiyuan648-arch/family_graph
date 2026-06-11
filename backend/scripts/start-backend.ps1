@@ -25,6 +25,40 @@ function Get-CloudflaredUrl {
   return $match.Matches[0].Value
 }
 
+function Stop-PortProcess {
+  param(
+    [int]$Port
+  )
+
+  $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+  $processIds = $connections |
+    Select-Object -ExpandProperty OwningProcess -Unique |
+    Where-Object { $_ -and $_ -ne $PID }
+
+  foreach ($processId in $processIds) {
+    try {
+      $process = Get-Process -Id $processId -ErrorAction Stop
+      Write-Host "Port $Port is occupied by PID $processId ($($process.ProcessName)). Stopping it..."
+      Stop-Process -Id $processId -Force
+    } catch {
+      Write-Host "Failed to stop PID $processId on port $Port. $_"
+      throw
+    }
+  }
+
+  for ($i = 0; $i -lt 10; $i++) {
+    $remaining = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if (-not $remaining) {
+      return
+    }
+    Start-Sleep -Seconds 1
+  }
+
+  $remainingPids = (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique) -join ", "
+  throw "Port $Port is still occupied by PID(s): $remainingPids"
+}
+
 $npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
 if (-not $npm) {
   throw "npm.cmd was not found in PATH."
@@ -35,6 +69,19 @@ if (-not (Test-Path ".env")) {
   Write-Host "Created backend/.env from backend/.env.example"
 }
 
+$existingApi = $false
+try {
+  $health = Invoke-RestMethod $apiHealth -TimeoutSec 2
+  $existingApi = [bool]$health.ok
+} catch {
+  $existingApi = $false
+}
+
+if ($existingApi) {
+  Write-Host "Existing API detected at $apiHealth. It will be restarted by this script."
+}
+Stop-PortProcess -Port $ApiPort
+
 $apiRunning = $false
 try {
   $health = Invoke-RestMethod $apiHealth -TimeoutSec 2
@@ -44,11 +91,7 @@ try {
 }
 
 Write-Host "Preparing database..."
-if ($apiRunning) {
-  Write-Host "API is already running, skipping Prisma generate to avoid locked engine files."
-} else {
-  & $npm run db:generate
-}
+& $npm run db:generate
 & $npm run db:migrate
 & $npm run db:seed
 & $npm run db:check
@@ -57,12 +100,16 @@ if ($apiRunning) {
   Write-Host "API is already running at $apiHealth"
 } else {
   Write-Host "Starting API dev server..."
+  $runId = Get-Date -Format "yyyyMMdd-HHmmss"
+  $apiOut = ".api.$runId.out"
+  $apiErr = ".api.$runId.err"
+
   $apiProcess = Start-Process -FilePath $npm `
     -ArgumentList @("run", "dev") `
     -WorkingDirectory $BackendRoot `
     -WindowStyle Hidden `
-    -RedirectStandardOutput ".api.out" `
-    -RedirectStandardError ".api.err" `
+    -RedirectStandardOutput $apiOut `
+    -RedirectStandardError $apiErr `
     -PassThru
 
   for ($i = 0; $i -lt 20; $i++) {
@@ -78,10 +125,11 @@ if ($apiRunning) {
   }
 
   if (-not $apiRunning) {
-    throw "API did not become healthy. Check backend/.api.err and backend/.api.out."
+    throw "API did not become healthy. Check backend/$apiErr and backend/$apiOut."
   }
 
   Write-Host "API started. PID: $($apiProcess.Id)"
+  Write-Host "API logs: backend/$apiOut and backend/$apiErr"
 }
 
 Write-Host ""
