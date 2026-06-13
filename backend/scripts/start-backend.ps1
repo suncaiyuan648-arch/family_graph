@@ -82,55 +82,11 @@ if ($existingApi) {
 }
 Stop-PortProcess -Port $ApiPort
 
-$apiRunning = $false
-try {
-  $health = Invoke-RestMethod $apiHealth -TimeoutSec 2
-  $apiRunning = [bool]$health.ok
-} catch {
-  $apiRunning = $false
-}
-
 Write-Host "Preparing database..."
 & $npm run db:generate
 & $npm run db:migrate
 & $npm run db:seed
 & $npm run db:check
-
-if ($apiRunning) {
-  Write-Host "API is already running at $apiHealth"
-} else {
-  Write-Host "Starting API dev server..."
-  $runId = Get-Date -Format "yyyyMMdd-HHmmss"
-  $apiOut = ".api.$runId.out"
-  $apiErr = ".api.$runId.err"
-
-  $apiProcess = Start-Process -FilePath $npm `
-    -ArgumentList @("run", "dev") `
-    -WorkingDirectory $BackendRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $apiOut `
-    -RedirectStandardError $apiErr `
-    -PassThru
-
-  for ($i = 0; $i -lt 20; $i++) {
-    try {
-      $health = Invoke-RestMethod $apiHealth -TimeoutSec 2
-      if ($health.ok) {
-        $apiRunning = $true
-        break
-      }
-    } catch {
-      Start-Sleep -Seconds 1
-    }
-  }
-
-  if (-not $apiRunning) {
-    throw "API did not become healthy. Check backend/$apiErr and backend/$apiOut."
-  }
-
-  Write-Host "API started. PID: $($apiProcess.Id)"
-  Write-Host "API logs: backend/$apiOut and backend/$apiErr"
-}
 
 Write-Host ""
 Write-Host "Backend local service:"
@@ -141,52 +97,55 @@ Write-Host ""
 
 if ($SkipTunnel) {
   Write-Host "Cloudflared tunnel skipped."
-  exit 0
-}
-
-$cloudflared = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
-if (-not $cloudflared) {
-  Write-Host "cloudflared.exe was not found. API is running locally only."
-  exit 0
-}
-
-$existingTunnel = Get-Process cloudflared -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($existingTunnel) {
-  Write-Host "Cloudflared is already running. PID: $($existingTunnel.Id)"
 } else {
-  Write-Host "Starting cloudflared tunnel for API..."
-  if (Test-Path ".cloudflared.err") {
-    Clear-Content ".cloudflared.err"
-  }
-  if (Test-Path ".cloudflared.out") {
-    Clear-Content ".cloudflared.out"
-  }
+  $cloudflared = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
+  if (-not $cloudflared) {
+    Write-Host "cloudflared.exe was not found. API will run locally only."
+  } else {
+    $existingTunnels = Get-Process cloudflared -ErrorAction SilentlyContinue
+    foreach ($existingTunnel in $existingTunnels) {
+      Write-Host "Stopping existing cloudflared tunnel. PID: $($existingTunnel.Id)"
+      Stop-Process -Id $existingTunnel.Id -Force
+    }
 
-  $tunnelProcess = Start-Process -FilePath $cloudflared `
-    -ArgumentList @("tunnel", "--url", $ApiBaseUrl) `
-    -WorkingDirectory $BackendRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput ".cloudflared.out" `
-    -RedirectStandardError ".cloudflared.err" `
-    -PassThru
+    Write-Host "Starting cloudflared tunnel for API..."
+    if (Test-Path ".cloudflared.err") {
+      Clear-Content ".cloudflared.err"
+    }
+    if (Test-Path ".cloudflared.out") {
+      Clear-Content ".cloudflared.out"
+    }
 
-  Write-Host "Cloudflared started. PID: $($tunnelProcess.Id)"
+    $tunnelProcess = Start-Process -FilePath $cloudflared `
+      -ArgumentList @("tunnel", "--url", $ApiBaseUrl) `
+      -WorkingDirectory $BackendRoot `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput ".cloudflared.out" `
+      -RedirectStandardError ".cloudflared.err" `
+      -PassThru
+
+    Write-Host "Cloudflared started. PID: $($tunnelProcess.Id)"
+
+    $tunnelUrl = $null
+    for ($i = 0; $i -lt 20; $i++) {
+      $tunnelUrl = Get-CloudflaredUrl
+      if ($tunnelUrl) {
+        break
+      }
+      Start-Sleep -Seconds 1
+    }
+
+    if ($tunnelUrl) {
+      Write-Host ""
+      Write-Host "Backend tunnel service:"
+      Write-Host "  Tunnel base URL: $tunnelUrl"
+      Write-Host "  Tunnel example : $tunnelUrl/api/families/family-lin/stats"
+    } else {
+      Write-Host "Cloudflared URL was not found yet. Check backend/.cloudflared.err."
+    }
+  }
 }
 
-$tunnelUrl = $null
-for ($i = 0; $i -lt 20; $i++) {
-  $tunnelUrl = Get-CloudflaredUrl
-  if ($tunnelUrl) {
-    break
-  }
-  Start-Sleep -Seconds 1
-}
-
-if ($tunnelUrl) {
-  Write-Host ""
-  Write-Host "Backend tunnel service:"
-  Write-Host "  Tunnel base URL: $tunnelUrl"
-  Write-Host "  Tunnel example : $tunnelUrl/api/families/family-lin/stats"
-} else {
-  Write-Host "Cloudflared URL was not found yet. Check backend/.cloudflared.err."
-}
+Write-Host ""
+Write-Host "Starting API dev server in this terminal. Press Ctrl+C to stop."
+& $npm run dev
