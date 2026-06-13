@@ -1,7 +1,3 @@
-param(
-  [switch]$SkipTunnel
-)
-
 $ErrorActionPreference = "Stop"
 
 $BackendRoot = Split-Path -Parent $PSScriptRoot
@@ -12,23 +8,42 @@ $ApiBaseUrl = "http://localhost:$ApiPort"
 $apiHealth = "$ApiBaseUrl/health"
 $apiExample = "$ApiBaseUrl/api/families/family-lin/stats"
 
-function Get-CloudflaredUrl {
-  if (-not (Test-Path ".cloudflared.err")) {
-    return $null
-  }
-
-  $match = Select-String -Path ".cloudflared.err" -Pattern "https://[a-zA-Z0-9-]+\.trycloudflare\.com" | Select-Object -Last 1
-  if (-not $match) {
-    return $null
-  }
-
-  return $match.Matches[0].Value
-}
-
 function Stop-PortProcess {
   param(
     [int]$Port
   )
+
+  function Get-RelatedProcessIds {
+    param(
+      [int]$ProcessId
+    )
+
+    $relatedIds = New-Object System.Collections.Generic.List[int]
+    $currentId = $ProcessId
+
+    for ($i = 0; $i -lt 8; $i++) {
+      $processInfo = Get-WmiObject Win32_Process -Filter "ProcessId = $currentId" -ErrorAction SilentlyContinue
+      if (-not $processInfo -or $currentId -eq $PID) {
+        break
+      }
+
+      $commandLine = [string]$processInfo.CommandLine
+      $isBackendDevProcess = $commandLine -match "src/server\.ts|tsx watch src/server\.ts|npm.*dev:backend|start-backend\.ps1"
+      if ($currentId -ne $ProcessId -and -not $isBackendDevProcess) {
+        break
+      }
+
+      $relatedIds.Add($currentId)
+      $currentId = [int]$processInfo.ParentProcessId
+      if (-not $currentId) {
+        break
+      }
+    }
+
+    $relatedIdArray = $relatedIds.ToArray()
+    [array]::Reverse($relatedIdArray)
+    return $relatedIdArray
+  }
 
   $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
   $processIds = $connections |
@@ -36,13 +51,16 @@ function Stop-PortProcess {
     Where-Object { $_ -and $_ -ne $PID }
 
   foreach ($processId in $processIds) {
-    try {
-      $process = Get-Process -Id $processId -ErrorAction Stop
-      Write-Host "Port $Port is occupied by PID $processId ($($process.ProcessName)). Stopping it..."
-      Stop-Process -Id $processId -Force
-    } catch {
-      Write-Host "Failed to stop PID $processId on port $Port. $_"
-      throw
+    $relatedIds = Get-RelatedProcessIds -ProcessId $processId
+    foreach ($relatedId in $relatedIds) {
+      try {
+        $process = Get-Process -Id $relatedId -ErrorAction Stop
+        Write-Host "Port $Port is occupied by PID $processId. Stopping related PID $relatedId ($($process.ProcessName))..."
+        Stop-Process -Id $relatedId -Force
+      } catch {
+        Write-Host "Failed to stop related PID $relatedId for port $Port. $_"
+        throw
+      }
     }
   }
 
@@ -93,58 +111,7 @@ Write-Host "Backend local service:"
 Write-Host "  API base URL: $ApiBaseUrl"
 Write-Host "  Health check: $apiHealth"
 Write-Host "  Example API : $apiExample"
-Write-Host ""
-
-if ($SkipTunnel) {
-  Write-Host "Cloudflared tunnel skipped."
-} else {
-  $cloudflared = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
-  if (-not $cloudflared) {
-    Write-Host "cloudflared.exe was not found. API will run locally only."
-  } else {
-    $existingTunnels = Get-Process cloudflared -ErrorAction SilentlyContinue
-    foreach ($existingTunnel in $existingTunnels) {
-      Write-Host "Stopping existing cloudflared tunnel. PID: $($existingTunnel.Id)"
-      Stop-Process -Id $existingTunnel.Id -Force
-    }
-
-    Write-Host "Starting cloudflared tunnel for API..."
-    if (Test-Path ".cloudflared.err") {
-      Clear-Content ".cloudflared.err"
-    }
-    if (Test-Path ".cloudflared.out") {
-      Clear-Content ".cloudflared.out"
-    }
-
-    $tunnelProcess = Start-Process -FilePath $cloudflared `
-      -ArgumentList @("tunnel", "--url", $ApiBaseUrl) `
-      -WorkingDirectory $BackendRoot `
-      -WindowStyle Hidden `
-      -RedirectStandardOutput ".cloudflared.out" `
-      -RedirectStandardError ".cloudflared.err" `
-      -PassThru
-
-    Write-Host "Cloudflared started. PID: $($tunnelProcess.Id)"
-
-    $tunnelUrl = $null
-    for ($i = 0; $i -lt 20; $i++) {
-      $tunnelUrl = Get-CloudflaredUrl
-      if ($tunnelUrl) {
-        break
-      }
-      Start-Sleep -Seconds 1
-    }
-
-    if ($tunnelUrl) {
-      Write-Host ""
-      Write-Host "Backend tunnel service:"
-      Write-Host "  Tunnel base URL: $tunnelUrl"
-      Write-Host "  Tunnel example : $tunnelUrl/api/families/family-lin/stats"
-    } else {
-      Write-Host "Cloudflared URL was not found yet. Check backend/.cloudflared.err."
-    }
-  }
-}
+Write-Host "  Public tunnel: disabled for backend"
 
 Write-Host ""
 Write-Host "Starting API dev server in this terminal. Press Ctrl+C to stop."

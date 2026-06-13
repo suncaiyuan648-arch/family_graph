@@ -4,8 +4,22 @@ $FrontendRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $FrontendRoot
 
 $FrontendPort = 5400
-$FrontendUrl = "http://localhost:$FrontendPort/login"
+$FrontendBaseUrl = "http://127.0.0.1:$FrontendPort"
+$FrontendUrl = "$FrontendBaseUrl/login"
 $FallbackPort = 5401
+
+function Get-CloudflaredUrl {
+  if (-not (Test-Path ".cloudflared.err")) {
+    return $null
+  }
+
+  $match = Select-String -Path ".cloudflared.err" -Pattern "https://[a-zA-Z0-9-]+\.trycloudflare\.com" | Select-Object -Last 1
+  if (-not $match) {
+    return $null
+  }
+
+  return $match.Matches[0].Value
+}
 
 function Stop-PortProcess {
   param(
@@ -49,5 +63,54 @@ if (-not $npm) {
 Stop-PortProcess -Port $FrontendPort
 Stop-PortProcess -Port $FallbackPort
 
-Write-Host "Starting frontend at $FrontendUrl"
+$cloudflared = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
+$tunnelUrl = $null
+
+if ($cloudflared) {
+  $existingTunnels = Get-Process cloudflared -ErrorAction SilentlyContinue
+  foreach ($existingTunnel in $existingTunnels) {
+    Write-Host "Stopping existing cloudflared tunnel. PID: $($existingTunnel.Id)"
+    Stop-Process -Id $existingTunnel.Id -Force
+  }
+
+  if (Test-Path ".cloudflared.err") {
+    Clear-Content ".cloudflared.err"
+  }
+  if (Test-Path ".cloudflared.out") {
+    Clear-Content ".cloudflared.out"
+  }
+
+  $tunnelProcess = Start-Process -FilePath $cloudflared `
+    -ArgumentList @("tunnel", "--url", $FrontendBaseUrl) `
+    -WorkingDirectory $FrontendRoot `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput ".cloudflared.out" `
+    -RedirectStandardError ".cloudflared.err" `
+    -PassThru
+
+  for ($i = 0; $i -lt 20; $i++) {
+    $tunnelUrl = Get-CloudflaredUrl
+    if ($tunnelUrl) {
+      break
+    }
+    Start-Sleep -Seconds 1
+  }
+}
+
+Write-Host ""
+Write-Host "Frontend addresses:"
+Write-Host "  -> Local:   $FrontendBaseUrl/"
+if ($tunnelUrl) {
+  Write-Host "              $tunnelUrl/"
+}
+Write-Host "  -> Login:   $FrontendUrl"
+if ($tunnelUrl) {
+  Write-Host "              $tunnelUrl/login"
+} elseif (-not $cloudflared) {
+  Write-Host "              cloudflared.exe was not found; public frontend tunnel is disabled."
+} else {
+  Write-Host "              Cloudflared URL was not found yet. Check frontend/.cloudflared.err."
+}
+Write-Host ""
+Write-Host "Starting frontend dev server. Press Ctrl+C to stop."
 & $npm run dev:vite

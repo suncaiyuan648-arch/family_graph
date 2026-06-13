@@ -12,3 +12,4 @@ uploads
 .cloudflared.*
 .localtunnel.*
 .api.*
+.test-*
